@@ -168,7 +168,13 @@ class SessionManager:
         except TimeoutError:
             raise Exception("Login was not successful; please check username and password")
 
-        await self.page.wait_for_selector("#_txtSymbol")
+        # Schwab's redesigned trade page no longer has #_txtSymbol, so waiting for it timed
+        # out after a successful login. Only the session cookies are needed, so wait for the
+        # page to settle instead.
+        try:
+            await self.page.wait_for_load_state("networkidle", timeout=20000)
+        except TimeoutError:
+            pass  # never went network-idle; the cookies are set anyway
 
         await self._async_save_and_close_session()
         return True
