@@ -793,3 +793,39 @@ class Schwab(SessionManager):
 
         response = json.loads(r.text)
         return response
+
+    def get_price_history_v2(self, ticker, period="day", extended_hours=True):
+        """
+             Price history for one ticker, as drawn by the charts on Schwab's research pages.
+             Index symbols need a "$" (e.g. "$VIX"). Only one ticker per call.
+
+             ticker (str) - ticker of the security
+             period (str) - bar size depends on the period:
+                 "day"        1-minute bars, current (or last) trading day only
+                 "week"       15-minute bars, last 5 trading days
+                 "oneMonth", "threeMonth", "sixMonth", "ytd", "threeYear", "fiveYear"   coarser bars
+             extended_hours (bool) - include pre- and after-market bars where the security has them
+
+             Returns a dict with "previousClose", "previousCloseDate", "change", "changePercent" and
+             "timeSeries": a list of bars with "openPrice", "highPrice", "lowPrice", "lastPrice" (close),
+             "volume" and "lastPriceDate" (US/Eastern, no timezone).
+        """
+        data = {
+            "symbols": ticker,
+            "period": period,
+            "needExtendedHoursData": "true" if extended_hours else "false"
+        }
+
+        full_url = urllib.parse.urljoin(urls.price_history_v2(), '?' + urllib.parse.urlencode(data))
+
+        # Adding this header seems to be necessary.
+        self.headers['schwab-resource-version'] = '1.0'
+
+        # this endpoint rejects the 'update' scope with insufficient_scope
+        self.update_token(token_type='api')
+        r = requests.get(full_url, headers=self.headers)
+        if r.status_code != 200:
+            return [r.text], False
+
+        response = json.loads(r.text)
+        return response["stockChart"][0]
